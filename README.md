@@ -21,7 +21,7 @@ REOB 支持三种基于 REO 特征的分类策略：
 - `VotingMethod`：多数投票方法。若最终选择 $n$ 个基因对，则样本评分为
 
 $$
-\operatorname{score}(s) = \frac{1}{n}\sum_{i=1}^{n} x_i(s) + b
+\text{score}(s) = \frac{1}{n}\sum_{i=1}^{n} x_i(s) + b
 $$
 
 其中 $b$ 为训练阶段根据投票阈值校准得到的偏置；当 $b=0$ 时，该式退化为普通等权多数投票。
@@ -29,14 +29,14 @@ $$
 - `RFMethod`：基于随机森林树桩筛选稳定基因对，并使用归一化特征重要性作为权重：
 
 $$
-\operatorname{score}(s) = \sum_{i=1}^{n} w_i x_i(s), \qquad
+\text{score}(s) = \sum_{i=1}^{n} w_i x_i(s), \qquad
 w_i \ge 0,\quad \sum_{i=1}^{n} w_i = 1
 $$
 
 - `LassoMethod`：使用 Lasso/Elastic Net 路径进行稳定性选择，并通过 Logistic 映射输出阳性概率：
 
 $$
-\operatorname{score}(s) =
+\text{score}(s) =
 \sigma\left(\sum_{i=1}^{n} w_i x_i(s) + b\right), \qquad
 \sigma(z)=\frac{1}{1+\exp(-z)}
 $$
@@ -46,8 +46,8 @@ $$
 $$
 \hat{y}(s)=
 \begin{cases}
-1, & \operatorname{score}(s) \ge 0.5,\\
-0, & \operatorname{score}(s) < 0.5.
+1, & \text{score}(s) \ge 0.5,\\
+0, & \text{score}(s) < 0.5.
 \end{cases}
 $$
 
