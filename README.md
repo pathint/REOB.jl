@@ -215,18 +215,6 @@ julia --project=REOB -e 'using Pkg; Pkg.test()'
 
 默认值为 `5000`。这是 Fisher 基因对筛选的预留参数；当前 `fit_reo` 主流程使用 BQC，不读取该字段，通常不用设置。
 
-#### `forest_trees`
-
-默认值为 `100`。这是 RF 树数量的预留参数；当前 RF 代码不读取，通常不用设置。
-
-#### `forest_depth`
-
-默认值为 `1`。这是 RF 深度的预留参数；当前 RF 固定使用树桩深度，不读取该字段。
-
-#### `lasso_lambda`
-
-默认值为 `:min`。这是 Lasso lambda 选择策略的预留参数；当前 Lasso 代码不读取，通常不用设置。
-
 #### `verbose`
 
 默认值为 `false`。用于控制筛选、训练和部分评估日志。调试时设为 `true`，批量运行时保持 `false`。
@@ -247,7 +235,7 @@ cfg = REOConfig(
 )
 ```
 
-说明：VotingMethod 当前不使用子采样，`ss_iterations`、`ss_ratio`、`ss_threshold` 无需设置；`target_n` 也不直接控制最终特征数。若候选特征超过 `128`，代码会先截取前 `128` 个再进入 Voting 搜索。
+说明：VotingMethod 当前不使用子采样，`ss_iterations`、`ss_ratio`、`ss_threshold` 无需设置；`target_n` 也不直接控制最终特征数。若候选特征超过 `128`，算法选取前 BQC打分前`128` 个基因对，进入 Voting 模型构建。
 
 #### RFMethod
 
@@ -260,7 +248,7 @@ cfg = REOConfig(
 )
 ```
 
-说明：RF 读取 `ss_iterations`、`ss_ratio`、`target_n`。当前不读取 `ss_threshold`、`forest_trees`、`forest_depth`。
+说明：RF 读取 `ss_iterations`、`ss_ratio`、`target_n`。
 
 #### LassoMethod
 
@@ -274,7 +262,7 @@ cfg = REOConfig(
 )
 ```
 
-说明：Lasso 读取 `ss_iterations`、`ss_ratio`、`ss_threshold`、`target_n`。当前不读取 `lasso_lambda`。
+说明：Lasso 读取 `ss_iterations`、`ss_ratio`、`ss_threshold`、`target_n`。
 
 #### TSP / k-TSP / AUC-TSP
 
