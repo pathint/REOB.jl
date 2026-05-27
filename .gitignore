@@ -1,0 +1,17 @@
+# 忽略当前目录下所有以 "." 开头的文件和目录
+/.*
+!.gitignore
+
+# 忽略代理说明文件
+/AGENT.md
+/AGENTS.md
+
+# 忽略根目录下的压缩包
+/*.tgz
+
+# 暂不纳入当前 Julia 算法维护规划的多分类草稿
+/REOB/src/multiclass.txt
+
+# 忽略 Documenter.jl 生成的文档站产物
+/docs/build/
+/docs/Manifest.toml
