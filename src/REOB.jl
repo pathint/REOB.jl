@@ -21,6 +21,7 @@ export fit_reo, predict_reo, evaluate_reo, run_permutation_test, generate_test_d
 export TSPModel, KTSPModel, AUCTSPModel 
 export fit_tsp, predict_tsp, fit_ktsp, predict_ktsp, fit_auctsp, predict_auctsp 
 export evaluate_tsp, evaluate_ktsp, evaluate_auctsp
+export check_task_difficulty
 
 # 包含核心组件
 include("types.jl")       # 定义结构体

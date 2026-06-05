@@ -40,10 +40,11 @@ function preprocess_filters(
 
     # 3. BQC 生物学稳定性审计，剔除组内序关系不稳定的基因对。
     all_pairs = collect(combinations(selected_genes, 2))
-    pairs_initial = filter_pairs_by_bqc(all_pairs, data, labels, keep_low, cfg::REOConfig)
-    cfg.verbose && println(">>> 基因对经BQC阈值筛选，余 $(length(pairs_initial)) 对基因。")
+    pairs_initial, _, _ = filter_pairs_by_bqc_hierarchical(all_pairs, data, labels, keep_low, cfg::REOConfig)
 
-    length(pairs_initial) == 0 && error("0对基因剩余。可放宽基因对筛选参数，如bqc_threshold和p0_threshold，重新尝试。")
+	cfg.verbose && println(">>> Gene pairs filtered by BQC thresholds, remaining: $(length(pairs_initial)) pairs.")
+
+	length(pairs_initial) == 0 && error("0 gene pairs are left. Try to use less strict parameters, e.g. lower the values of 'bqc_threshold' or 'p0_threshold'.")
 
     # 4. 混淆因子审计 (Confounding Factor Audit, 利用cfg.p_val_cutoff)
     if !isnothing(confounders) && !isempty(confounders)
@@ -80,6 +81,25 @@ function preprocess_filters(
     final_pairs, X_final = drop_correlated_features(X_initial, pairs_pruned, cfg.cor_threshold)
 
     return final_pairs, X_final
+end
+
+function check_task_difficulty(
+    data::Matrix{<:Real}, 
+    labels::AbstractVector, 
+    gene_ids::Vector, 
+    cfg::REOConfig 
+)
+    # 1. 过滤低表达 (利用 cfg.low_rank_q)
+    keep_low = filter_low_rank_genes(data, cfg.low_rank_q; verbose=cfg.verbose)
+
+    # 2. 差异秩次过滤 (利用 cfg.top_diff_n)
+    selected_genes = filter_diff_rank_genes(data, labels, keep_low;
+                                            top_n=cfg.top_diff_n, verbose=cfg.verbose)
+
+    # 3. BQC 生物学稳定性审计，剔除组内序关系不稳定的基因对。
+    all_pairs = collect(combinations(selected_genes, 2))
+    _, tdi_score, bqc_scores = filter_pairs_by_bqc_hierarchical(all_pairs, data, labels, keep_low, cfg::REOConfig)
+	return tdi_score, bqc_scores
 end
 
 """
@@ -235,6 +255,71 @@ function filter_pairs_by_bqc(pairs, data, labels, keep_low, cfg::REOConfig)
     sorted_pairs = [x.pair for x in results]
 
     return sorted_pairs
+end
+
+
+function filter_pairs_by_bqc_hierarchical(pairs, data, labels, keep_low, cfg::REOConfig)
+    # 1. 识别两组的样本索引与总数
+    idx0 = findall(==(0), labels) # control
+    idx1 = findall(==(1), labels) # case
+    n0 = length(idx0)
+    n1 = length(idx1)
+    
+    # 2. 估计全局 Alpha 
+    cfg.verbose && println(">>> Estimate the global alpha value ...")
+    counts_freq = calculate_reo_distribution(data[keep_low,:]; verbose = cfg.verbose)
+    counts_emp  = symmetrize_and_to_pdf(counts_freq; verbose = cfg.verbose)
+    beta_res, probit_res = fit_distributions(counts_emp; verbose = cfg.verbose)
+    alpha_global = beta_res.alpha 
+
+    # 提取过滤阈值
+    bqc_threshold = cfg.bqc_threshold
+    p0_threshold  = cfg.p0_threshold
+
+    threshold_dict = generate_bqc_threshold_dict(n0, n1, alpha_global, bqc_threshold, p0_threshold; verbose=cfg.verbose)
+    cfg.verbose && println(">>> Filtering gene pairs: $(length(threshold_dict)) records in precomputed dictinoary.")
+    pairs_initial = filter_pairs_with_dict(pairs, data, labels, threshold_dict; verbose = cfg.verbose)
+
+
+    cfg.verbose && println(">>> 基因对筛选阈值条件，共 $(length(threshold_dict)) 条记录。")
+    n_pairs = length(pairs_initial)
+    results = Vector{NamedTuple{(:pair, :score, :p0, :p1, :p0_post, :p0_diff), 
+								Tuple{Tuple{Int, Int}, Float64, Float64, Float64, Float64, Float64}}}(undef, n_pairs)
+    
+    cfg.verbose && println(">>> Start to calcualte the BQC score ...")
+
+    # 3. 并行计算每个基因对的分数
+    Threads.@threads for i in 1:n_pairs
+        g1, g2 = pairs_initial[i]
+        
+        # 快速计算两组的阳性频数
+        @views k0 = sum(data[g1, idx0] .> data[g2, idx0])
+        @views k1 = sum(data[g1, idx1] .> data[g2, idx1])
+        
+        # 调用全新的层级增强 BQC 函数
+        score, p0_post_mean = calculate_enhanced_bqc_hierarchical(
+            k0, n0, k1, n1, alpha_global; n_power=1
+        )
+        
+        p0_diff = abs(p0_post_mean - 0.5)
+        results[i] = (pair = (g1, g2), score = score, p0 = k0/n0, p1 = k1/n1, p0_post = p0_post_mean, p0_diff = p0_diff)
+    end
+
+	# 4. 调用 TDI 指标评估函数，捕获评估得分和用于绘图的全部有效分数
+	tdi_score, plot_scores = calculate_tdi_metrics(results, bqc_threshold, p0_threshold; top_k=50, verbose = cfg.verbose)
+	
+    # 5. 同时基于 score（>=）和 p0_diff（>）进行双重硬门槛过滤
+    valid_results = filter(x -> x.score >= bqc_threshold && x.p0_diff > p0_threshold, results)
+    
+    # 5. 执行两级排序：
+    # 第一关键字：score 倒序
+    # 第二关键字：p0_diff 倒序
+    sort!(valid_results, by = x -> (x.score, x.p0_diff), rev = true)
+	#println(valid_results)
+    cfg.verbose && println(">>> Done with BQC filtering. Total # pairs: $n_pairs, retained: $(length(valid_results))")
+
+    # 6. 返回排序后的最佳基因对
+    return [x.pair for x in valid_results], tdi_score, plot_scores
 end
 
 """
