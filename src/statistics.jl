@@ -190,7 +190,7 @@ function calculate_reo_distribution(data::Matrix{Float64}; verbose = false)
     # 为每个线程预分配一个统计数组，避免竞争锁
     thread_counts = [zeros(Int, n_samples + 1) for _ in 1:nthreads()]
     
-    @threads for i in 1:(n_genes-1)
+    Threads.@threads for i in 1:(n_genes-1)
         id = threadid()
         @inbounds for j in (i+1):n_genes
             k = 0

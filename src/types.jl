@@ -68,6 +68,7 @@ Base.@kwdef struct REOConfig
 	# BQC 相关配置
 	bqc_threshold::Float64 = 3.0  # 置信度阈值 (0.5~1.0)
 	p0_threshold::Float64 = 0.2   # 置信度阈值 (0.5~1.0)
+	global_alpha::Union{Nothing, Float64} = nothing
 
     target_n::Int = 15                 # 最终特征数 
     verbose::Bool = false

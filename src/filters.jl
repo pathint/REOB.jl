@@ -265,12 +265,16 @@ function filter_pairs_by_bqc_hierarchical(pairs, data, labels, keep_low, cfg::RE
     n0 = length(idx0)
     n1 = length(idx1)
     
-    # 2. 估计全局 Alpha 
-    cfg.verbose && println(">>> Estimate the global alpha value ...")
-    counts_freq = calculate_reo_distribution(data[keep_low,:]; verbose = cfg.verbose)
-    counts_emp  = symmetrize_and_to_pdf(counts_freq; verbose = cfg.verbose)
-    beta_res, probit_res = fit_distributions(counts_emp; verbose = cfg.verbose)
-    alpha_global = beta_res.alpha 
+	if isnothing(cfg.global_alpha)
+    	# 2. 估计全局 Alpha 
+    	cfg.verbose && println(">>> Estimate the global alpha value ...")
+    	counts_freq = calculate_reo_distribution(data[keep_low,:]; verbose = cfg.verbose)
+    	counts_emp  = symmetrize_and_to_pdf(counts_freq; verbose = cfg.verbose)
+    	beta_res, probit_res = fit_distributions(counts_emp; verbose = cfg.verbose)
+    	alpha_global = beta_res.alpha 
+	else
+		alpha_global = cfg.global_alpha
+	end
 
     # 提取过滤阈值
     bqc_threshold = cfg.bqc_threshold
