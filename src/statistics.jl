@@ -180,32 +180,40 @@ end
 # ===================================================================
 # 1. 计算 REO 频数分布 (多线程并行)
 # ===================================================================
-function calculate_reo_distribution(data::Matrix{Float64}; verbose = false)
+function calculate_reo_distribution(data::Matrix{<:Real}; verbose = false)
     n_genes, n_samples = size(data)
     n_pairs = div(n_genes * (n_genes - 1), 2)
     
     verbose && println(">>> [1/4] Start to count REOs...")
     verbose && println("    # genes: $n_genes, # samples: $n_samples, # gene pairs: $n_pairs")
-    
-    # 为每个线程预分配一个统计数组，避免竞争锁
-    thread_counts = [zeros(Int, n_samples + 1) for _ in 1:nthreads()]
-    
+   
+	atomic_counts = [Threads.Atomic{Int}(0) for _ in 1:(n_samples + 1)]
+
+	# Handle ties
+	thread_rand_bits = [BitVector(undef, n_samples) for _ in 1:nthreads()]
+
     Threads.@threads for i in 1:(n_genes-1)
-        id = threadid()
+		# NOTE: dynamic assignment? `threadid()` could be larger than `nthreads()`
+		id = mod1(threadid(), nthreads())
+		rand_bits = thread_rand_bits[id]
         @inbounds for j in (i+1):n_genes
             k = 0
-            # 高效的样本遍历比较
+			rand!(rand_bits)
             for s in 1:n_samples
-                k += (data[i, s] > data[j, s])
+                a = data[i, s] 
+				b = data[j, s]
+				k += (a > b) | ((a == b) & rand_bits[s])
             end
             # k 的范围是 0 到 n_samples，对应索引 k+1
-            thread_counts[id][k + 1] += 1
+            #thread_counts[id][k + 1] += 1
+			Threads.atomic_add!(atomic_counts[k + 1], 1)
         end
     end
     
     # 汇总所有线程的统计结果
-    total_counts = sum(thread_counts)
-    return total_counts
+    #total_counts = sum(thread_counts)
+    #return total_counts
+	return [atomic_counts[i][] for i in 1:(n_samples + 1)]
 end
 
 # ===================================================================

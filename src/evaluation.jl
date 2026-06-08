@@ -41,7 +41,12 @@ function predict_reo(model::REOModel, test_data::Matrix{<:Real}, test_gene_ids::
     # 2. 构建特征矩阵 X_val
     X_val = zeros(Float64, n_samples, length(active_pairs))
     for (j, (g1_idx, g2_idx)) in enumerate(active_pairs)
-        @views X_val[:, j] .= test_data[g1_idx, :] .> test_data[g2_idx, :]
+        #@views X_val[:, j] .= test_data[g1_idx, :] .> test_data[g2_idx, :]
+        @views begin
+			a = test_data[g1_idx, :]
+			b = test_data[g2_idx, :]
+			X_val[:, j] .=  (a .> b) .| ((a .== b) .& rand(Bool, length(a)))
+		end
     end
     
     # 3. 计算原始线性得分 z

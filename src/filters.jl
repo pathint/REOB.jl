@@ -56,7 +56,10 @@ function preprocess_filters(
         for (i, pair) in enumerate(pairs_initial)
             g1_idx, g2_idx = pair
             # 获取该对子在所有样本中的二值化序关系
-            reo_vec = data[g1_idx, :] .> data[g2_idx, :]
+			a = @view data[g1_idx, :]
+			b = @view data[g2_idx, :]
+
+			result = (a .> b) .| ((a .== b) .& rand(Bool, length(a)))
             
             for cf_vec in confounders
                 if is_confounded(reo_vec, cf_vec, p_val_cutoff)
@@ -179,9 +182,15 @@ function get_top_pairs_parallel_fisher(data::Matrix{<:Real}, labels::AbstractVec
     Threads.@threads for i in 1:n_pairs
         g1, g2 = all_pairs[i]
         # 统计在 Label=1 中 g1 > g2 的数量
-        c1 = sum(data[g1, idx1] .> data[g2, idx1])
+		a = @view data[g1, idx1]
+		b = @view data[g2, idx1]
+        #c1 = sum(data[g1, idx1] .> data[g2, idx1])
+		c1 = sum((a .> b) .| ((a .== b) .& rand(Bool, length(a))))
         # 统计在 Label=0 中 g1 > g2 的数量
-        c0 = sum(data[g1, idx0] .> data[g2, idx0])
+		a = @view data[g1, idx0]
+		b = @view data[g2, idx0]
+        #c0 = sum(data[g1, idx0] .> data[g2, idx0])
+		c0 = sum((a .> b) .| ((a .== b) .& rand(Bool, length(a))))
         # 构建 2x2 混淆矩阵
         #          g1>g2  g1<=g2
         # Label 1:  c1    n1-c1
@@ -233,11 +242,20 @@ function filter_pairs_by_bqc(pairs, data, labels, keep_low, cfg::REOConfig)
         g1, g2 = pairs_initial[i]
         
         # 快速计算频数 (使用 @views 避免内存拷贝)
-        @views k0 = sum(data[g1, idx0] .> data[g2, idx0])
+        @views begin
+			a = data[g1, idx0]
+			b = data[g2, idx0]
+			k0 = sum((a .> b) .| ((a .== b) .& rand(Bool, length(a))))
+		end
         p0 = k0 / n0
         p0_diff = abs(p0 - 0.5)
 
-        @views k1 = sum(data[g1, idx1] .> data[g2, idx1])
+        #@views k1 = sum(data[g1, idx1] .> data[g2, idx1])
+        @views begin
+			a = data[g1, idx1]
+			b = data[g2, idx1]
+			k1 = sum((a .> b) .| ((a .== b) .& rand(Bool, length(a))))
+		end
         
         # 调用您实现的增强型 BQC 函数
         score = calculate_enhanced_bqc(k1, n1, p0, tau)
@@ -297,8 +315,19 @@ function filter_pairs_by_bqc_hierarchical(pairs, data, labels, keep_low, cfg::RE
         g1, g2 = pairs_initial[i]
         
         # 快速计算两组的阳性频数
-        @views k0 = sum(data[g1, idx0] .> data[g2, idx0])
-        @views k1 = sum(data[g1, idx1] .> data[g2, idx1])
+        #@views k0 = sum(data[g1, idx0] .> data[g2, idx0])
+        #@views k1 = sum(data[g1, idx1] .> data[g2, idx1])
+        @views begin
+			a = data[g1, idx0]
+			b = data[g2, idx0]
+			k0 = sum((a .> b) .| ((a .== b) .& rand(Bool, length(a))))
+		end
+
+        @views begin
+			a = data[g1, idx1]
+			b = data[g2, idx1]
+			k1 = sum((a .> b) .| ((a .== b) .& rand(Bool, length(a))))
+		end
         
         # 调用全新的层级增强 BQC 函数
         score, p0_post_mean = calculate_enhanced_bqc_hierarchical(
@@ -345,13 +374,23 @@ function filter_pairs_with_dict(pairs, data, labels, threshold_dict::Dict; verbo
         g1, g2 = pairs[i]
         
         # 1. 快速计算频数
-        k0 = sum(data[g1, idx0] .> data[g2, idx0])
+        #k0 = sum(data[g1, idx0] .> data[g2, idx0])
+        @views begin
+			a = data[g1, idx0]
+			b = data[g2, idx0]
+			k0 = sum((a .> b) .| ((a .== b) .& rand(Bool, length(a))))
+		end
         
         # 2. 查字典：如果 k0 不在字典里，说明 p0 不够稳，直接跳过
         limit = get(threshold_dict, k0, nothing)
         
         if !isnothing(limit)
-            k1 = sum(data[g1, idx1] .> data[g2, idx1])
+            #k1 = sum(data[g1, idx1] .> data[g2, idx1])
+			@views begin
+				a = data[g1, idx1]
+				b = data[g2, idx1]
+				k1 = sum((a .> b) .| ((a .== b) .& rand(Bool, length(a))))
+			end
             
             # 3. 极速判断是否落入贝叶斯显著区间
 			if (k0 < n0 && k1 >= limit) || (k0 > n0 && k1 <= limit)
@@ -414,8 +453,18 @@ function build_feature_matrix_aligned(data::Matrix{<:Real}, pairs, labels::Abstr
         g1, g2 = pairs[j]
         
         # 计算在两组中 g1 > g2 出现的频率
-        @views p_pos = sum(data[g1, pos_idx] .> data[g2, pos_idx]) / n_pos
-        @views p_neg = sum(data[g1, neg_idx] .> data[g2, neg_idx]) / n_neg
+        #@views p_pos = sum(data[g1, pos_idx] .> data[g2, pos_idx]) / n_pos
+        #@views p_neg = sum(data[g1, neg_idx] .> data[g2, neg_idx]) / n_neg
+        @views begin
+			a = data[g1, pos_idx]
+			b = data[g2, pos_idx]
+			p_pos = sum((a .> b) .| ((a .== b) .& rand(Bool, length(a)))) / n_pos
+		end
+        @views begin
+			a = data[g1, neg_idx]
+			b = data[g2, neg_idx]
+			p_neg = sum((a .> b) .| ((a .== b) .& rand(Bool, length(a)))) / n_neg
+		end
 
         # 核心逻辑：如果 g1 > g2 在正类中出现的概率更低，则翻转这对基因
         if p_pos < p_neg
@@ -427,11 +476,17 @@ function build_feature_matrix_aligned(data::Matrix{<:Real}, pairs, labels::Abstr
         end
 
         # 填充特征矩阵
-        @views X[:, j] .= data[actual_g1, :] .> data[actual_g2, :]
+        #@views X[:, j] .= data[actual_g1, :] .> data[actual_g2, :]
+        @views begin
+			a = data[actual_g1, :]
+			b = data[actual_g2, :]
+			X[:, j] .=  (a .> b) .| ((a .== b) .& rand(Bool, length(a)))
+		end
     end
 
     return X, new_pairs
 end
+
 """
     drop_correlated_features(X, pairs, threshold=0.95)
 
