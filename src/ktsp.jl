@@ -121,5 +121,5 @@ function predict_ktsp(model::KTSPModel, new_data::Matrix{T}, gene_names::Vector)
         end
     end
 
-    return (votes .> (model.k / 2))
+    return (votes .> (model.k / 2), votes)
 end

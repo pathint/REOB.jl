@@ -195,7 +195,7 @@ end
 
 计算二分类预测的准确率、MCC 和预测向量。
 """
-function _evaluate_binary_predictions(preds::AbstractVector{Bool}, labels::AbstractVector; title::String="", verbose::Bool=false)
+function _evaluate_binary_predictions(preds::AbstractVector{Bool}, scores::AbstractVector, labels::AbstractVector; title::String="", verbose::Bool=false)
     acc = mean(preds .== labels)
     mcc = _calculate_mcc(preds, labels)
 
@@ -204,14 +204,22 @@ function _evaluate_binary_predictions(preds::AbstractVector{Bool}, labels::Abstr
     fp = sum((preds .== 1) .& (labels .== 0))
     fn = sum((preds .== 0) .& (labels .== 1))
 
+	if length(unique(scores)) > 2
+		auc = _binary_auc(scores, labels)
+	else
+		auc = nothing
+	end
+	println("AUC = $(auc)")
+
     if verbose
         println("--- $title 模型评估报告 ---")
-        println("准确率 (ACC): $(round(acc, digits=4))")
-        println("相关系数 (MCC): $(round(mcc, digits=4))")
+        println("准确率(ACC): $(round(acc, digits=4))")
+		isnothing(auc) || println("曲线下面积(AUC): $(round(auc, digits=4))")
+        println("相关系数(MCC): $(round(mcc, digits=4))")
         println("混淆矩阵: [TP: $tp, FP: $fp; FN: $fn, TN: $tn]")
     end
 
-    return (acc=acc, mcc=mcc, preds=preds)
+    return (acc=acc, auc = auc, mcc=mcc, preds=preds)
 end
 
 """
@@ -220,7 +228,7 @@ end
 评估 TSP 模型，返回准确率、MCC 和预测标签。
 """
 function evaluate_tsp(model::TSPModel, valid_data::Matrix{<:Real}, valid_gene_ids::Vector, valid_labels::AbstractVector; verbose::Bool=false)
-    return _evaluate_binary_predictions(predict_tsp(model, valid_data, valid_gene_ids), valid_labels; title="TSP", verbose=verbose)
+    return _evaluate_binary_predictions(predict_tsp(model, valid_data, valid_gene_ids)..., valid_labels; title="TSP", verbose=verbose)
 end
 
 """
@@ -229,7 +237,7 @@ end
 评估 k-TSP 模型，返回准确率、MCC 和预测标签。
 """
 function evaluate_ktsp(model::KTSPModel, valid_data::Matrix{<:Real}, valid_gene_ids::Vector, valid_labels::AbstractVector; verbose::Bool=false)
-    return _evaluate_binary_predictions(predict_ktsp(model, valid_data, valid_gene_ids), valid_labels; title="k-TSP", verbose=verbose)
+    return _evaluate_binary_predictions(predict_ktsp(model, valid_data, valid_gene_ids)..., valid_labels; title="k-TSP", verbose=verbose)
 end
 
 """
@@ -238,5 +246,5 @@ end
 评估 AUC-TSP 模型，返回准确率、MCC 和预测标签。
 """
 function evaluate_auctsp(model::AUCTSPModel, valid_data::Matrix{<:Real}, valid_gene_ids::Vector, valid_labels::AbstractVector; verbose::Bool=false)
-    return _evaluate_binary_predictions(predict_auctsp(model, valid_data, valid_gene_ids), valid_labels; title="AUC-TSP", verbose=verbose)
+    return _evaluate_binary_predictions(predict_auctsp(model, valid_data, valid_gene_ids)..., valid_labels; title="AUC-TSP", verbose=verbose)
 end

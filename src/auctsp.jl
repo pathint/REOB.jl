@@ -116,5 +116,5 @@ function predict_auctsp(model::AUCTSPModel, new_data::Matrix{T}, gene_names::Vec
     end
 
     # 多数投票决策
-	return (votes .> (model.k / 2))
+	return (votes .> (model.k / 2), votes)
 end

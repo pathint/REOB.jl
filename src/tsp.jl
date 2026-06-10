@@ -102,8 +102,8 @@ function predict_tsp(model::TSPModel, new_data::Matrix{T}, gene_names::Vector) w
     is_less = new_data[gene_i, :] .< new_data[gene_j, :]
     
     if model.p1 > model.p0
-        return is_less # true -> 1, false -> 0
+		return (is_less, is_less)  # true -> 1, false -> 0
     else
-        return (.!is_less) # true -> 0, false -> 1
+        return (.!is_less, .!is_less) # true -> 0, false -> 1
     end
 end
